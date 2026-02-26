@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atlas Mission Control Dashboard (Convex v3.1)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/convex/react@1.13.0/dist/index.js"></script>
+  <style>body{font-family:Arial,sans-serif;background:#1a1a1a;color:#fff;padding:20px;max-width:1200px;margin:auto;} .kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;} .column{background:#333;padding:20px;border-radius:8px;} .task{background:#444;padding:10px;margin:5px 0;border-radius:4px;cursor:pointer;} h1{text-align:center;color:#00ff88;} button{background:#00ff88;color:#000;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;} input{width:100%;padding:10px;margin:5px 0;}</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const { ConvexProvider, useConvex, useQuery, useMutation, usePaginatedQuery } = Convex.react;
+
+    const CONVEX_URL = "https://vivid-mule-180.convex.cloud";
+
+    const App = () => {
+      return (
+        <ConvexProvider clientOptions={{ endpoint: CONVEX_URL }}>
+          <Dashboard />
+        </ConvexProvider>
+      );
+    };
+
+    const Dashboard = () => {
+      const convex = useConvex();
+      const [newTask, setNewTask] = useState("");
+
+      const tasks = usePaginatedQuery("tasks:list", {}) || { initialResults: [] };
+
+      const addTask = useMutation("tasks:add");
+
+      const handleAddTask = async () => {
+        if (newTask) {
+          await addTask({ description: newTask, status: "Inbox", agent: "atlas" });
+          setNewTask("");
+        }
+      };
+
+      return (
+        <div>
+          <h1>🚀 Atlas Mission Control (Convex v3.1)</h1>
+          <div>
+            <input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Nova tarefa..." />
+            <button onClick={handleAddTask}>Adicionar ao Inbox</button>
+          </div>
+          <div className="kanban">
+            <Column title="Inbox" status="Inbox" tasks={tasks.initialResults.filter(t => t.status === "Inbox")} />
+            <Column title="In Progress" status="In Progress" tasks={tasks.initialResults.filter(t => t.status === "In Progress")} />
+            <Column title="Review" status="Review" tasks={tasks.initialResults.filter(t => t.status === "Review")} />
+            <Column title="Done" status="Done" tasks={tasks.initialResults.filter(t => t.status === "Done")} />
+          </div>
+          <LogsFeed />
+        </div>
+      );
+    };
+
+    const Column = ({ title, status, tasks }) => (
+      <div className="column">
+        <h2>{title}</h2>
+        {tasks.map(task => (
+          <div key={task._id} className="task">{task.description} [{task.agent}]</div>
+        ))}
+      </div>
+    );
+
+    const LogsFeed = () => {
+      const logs = useQuery("logs:list") || [];
+      return (
+        <div className="column">
+          <h2>Logs Recentes</h2>
+          {logs.slice(0,10).map(log => (
+            <div key={log._id}>{new Date(log.timestamp).toLocaleString()}: {log.message} ({log.level})</div>
+          ))}
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById("root"));
+  </script>
+</body>
+</html>
