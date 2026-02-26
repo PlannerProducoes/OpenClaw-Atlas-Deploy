@@ -3,82 +3,141 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Atlas Mission Control Dashboard (Convex v3.1)</title>
+  <title>Atlas Mission Control Dashboard v3.1</title>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/convex/react@1.13.0/dist/index.js"></script>
-  <style>body{font-family:Arial,sans-serif;background:#1a1a1a;color:#fff;padding:20px;max-width:1200px;margin:auto;} .kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;} .column{background:#333;padding:20px;border-radius:8px;} .task{background:#444;padding:10px;margin:5px 0;border-radius:4px;cursor:pointer;} h1{text-align:center;color:#00ff88;} button{background:#00ff88;color:#000;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;} input{width:100%;padding:10px;margin:5px 0;}</style>
+  <style>body{font-family:Arial,sans-serif;background:#1a1a1a;color:#fff;padding:20px;max-width:1200px;margin:auto;} .kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;} .column{background:#333;padding:20px;border-radius:8px;} .task{background:#444;padding:10px;margin:5px 0;border-radius:4px;cursor:pointer;} h1{text-align:center;color:#00ff88;} button{background:#00ff88;color:#000;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;margin:5px;} input{width:100%;padding:10px;margin:5px 0;border-radius:4px;} .urgent{background:#ff4444 !important;}</style>
 </head>
 <body>
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useEffect } = React;
-    const { ConvexProvider, useConvex, useQuery, useMutation, usePaginatedQuery } = Convex.react;
-
-    const CONVEX_URL = "https://vivid-mule-180.convex.cloud";
 
     const App = () => {
-      return (
-        <ConvexProvider clientOptions={{ endpoint: CONVEX_URL }}>
-          <Dashboard />
-        </ConvexProvider>
-      );
-    };
+      const [tasks, setTasks] = useState([]);
+      const [logs, setLogs] = useState([]);
+      const [newTask, setNewTask] = useState('');
+      const [newAgent, setNewAgent] = useState('atlas');
+      const [newUrgent, setNewUrgent] = useState(false);
 
-    const Dashboard = () => {
-      const convex = useConvex();
-      const [newTask, setNewTask] = useState("");
-
-      const tasks = usePaginatedQuery("tasks:list", {}) || { initialResults: [] };
-
-      const addTask = useMutation("tasks:add");
-
-      const handleAddTask = async () => {
-        if (newTask) {
-          await addTask({ description: newTask, status: "Inbox", agent: "atlas" });
-          setNewTask("");
+      useEffect(() => {
+        const savedTasks = localStorage.getItem('atlas_tasks');
+        const savedLogs = localStorage.getItem('atlas_logs');
+        if (savedTasks) setTasks(JSON.parse(savedTasks));
+        if (savedLogs) setLogs(JSON.parse(savedLogs));
+        // Example data
+        if (!savedTasks) {
+          const exampleTasks = [
+            {id: 1, description: 'Rebalancear carteira Munger', status: 'In Progress', agent: 'munger', urgent: true},
+            {id: 2, description: 'Prospecção FreelaAV leads', status: 'Inbox', agent: 'vision', urgent: false},
+            {id: 3, description: 'Upsell PlannerSystem', status: 'Review', agent: 'sales', urgent: false},
+            {id: 4, description: 'Análise patrimônio Family Office', status: 'Done', agent: 'atlas', urgent: false}
+          ];
+          setTasks(exampleTasks);
+          localStorage.setItem('atlas_tasks', JSON.stringify(exampleTasks));
         }
+        if (!savedLogs) {
+          const exampleLogs = [
+            {id: 1, message: 'Munger: Patrimônio R$14k atualizado', level: 'info', timestamp: Date.now()},
+            {id: 2, message: 'Heartbeat: Squads sync OK', level: 'info', timestamp: Date.now()-3600000}
+          ];
+          setLogs(exampleLogs);
+          localStorage.setItem('atlas_logs', JSON.stringify(exampleLogs));
+        }
+      }, []);
+
+      const addTask = () => {
+        if (newTask) {
+          const task = {
+            id: Date.now(),
+            description: newTask,
+            status: 'Inbox',
+            agent: newAgent,
+            urgent: newUrgent
+          };
+          const updatedTasks = [task, ...tasks];
+          setTasks(updatedTasks);
+          localStorage.setItem('atlas_tasks', JSON.stringify(updatedTasks));
+          // Log
+          const log = {id: Date.now(), message: `Nova tarefa: ${newTask} [${newAgent}]`, level: 'info', timestamp: Date.now()};
+          const updatedLogs = [log, ...logs];
+          setLogs(updatedLogs);
+          localStorage.setItem('atlas_logs', JSON.stringify(updatedLogs));
+          setNewTask('');
+        }
+      };
+
+      const updateStatus = (id, status) => {
+        const updatedTasks = tasks.map(t => t.id === id ? {...t, status} : t);
+        setTasks(updatedTasks);
+        localStorage.setItem('atlas_tasks', JSON.stringify(updatedTasks));
+      };
+
+      const toggleUrgent = (id) => {
+        const updatedTasks = tasks.map(t => t.id === id ? {...t, urgent: !t.urgent} : t);
+        setTasks(updatedTasks);
+        localStorage.setItem('atlas_tasks', JSON.stringify(updatedTasks));
       };
 
       return (
         <div>
-          <h1>🚀 Atlas Mission Control (Convex v3.1)</h1>
+          <h1>🚀 Atlas Mission Control v3.1</h1>
           <div>
             <input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Nova tarefa..." />
-            <button onClick={handleAddTask}>Adicionar ao Inbox</button>
+            <select value={newAgent} onChange={(e) => setNewAgent(e.target.value)}>
+              <option value="atlas">Atlas</option>
+              <option value="munger">Munger</option>
+              <option value="vision">Vision</option>
+              <option value="sales">Sales</option>
+            </select>
+            <label>
+              <input type="checkbox" checked={newUrgent} onChange={(e) => setNewUrgent(e.target.checked)} />
+              Urgente
+            </label>
+            <button onClick={addTask}>Adicionar Inbox</button>
           </div>
           <div className="kanban">
-            <Column title="Inbox" status="Inbox" tasks={tasks.initialResults.filter(t => t.status === "Inbox")} />
-            <Column title="In Progress" status="In Progress" tasks={tasks.initialResults.filter(t => t.status === "In Progress")} />
-            <Column title="Review" status="Review" tasks={tasks.initialResults.filter(t => t.status === "Review")} />
-            <Column title="Done" status="Done" tasks={tasks.initialResults.filter(t => t.status === "Done")} />
+            <Column title="Inbox" status="Inbox" tasks={tasks.filter(t => t.status === 'Inbox')} onUpdate={updateStatus} onToggle={toggleUrgent} />
+            <Column title="In Progress" status="In Progress" tasks={tasks.filter(t => t.status === 'In Progress')} onUpdate={updateStatus} onToggle={toggleUrgent} />
+            <Column title="Review" status="Review" tasks={tasks.filter(t => t.status === 'Review')} onUpdate={updateStatus} onToggle={toggleUrgent} />
+            <Column title="Done" status="Done" tasks={tasks.filter(t => t.status === 'Done')} onUpdate={updateStatus} onToggle={toggleUrgent} />
           </div>
-          <LogsFeed />
+          <LogsFeed logs={logs.slice(0,10)} />
         </div>
       );
     };
 
-    const Column = ({ title, status, tasks }) => (
+    const Column = ({ title, status, tasks, onUpdate, onToggle }) => (
       <div className="column">
-        <h2>{title}</h2>
+        <h2>{title} ({tasks.length})</h2>
         {tasks.map(task => (
-          <div key={task._id} className="task">{task.description} [{task.agent}]</div>
+          <div key={task.id} className={`task ${task.urgent ? 'urgent' : ''}`}>
+            {task.description} [{task.agent}]
+            <div>
+              <select value={status} onChange={(e) => onUpdate(task.id, e.target.value)}>
+                <option>Inbox</option>
+                <option>In Progress</option>
+                <option>Review</option>
+                <option>Done</option>
+              </select>
+              <button onClick={() => onToggle(task.id)}>Urgente {!task.urgent ? 'ON' : 'OFF'}</button>
+            </div>
+          </div>
         ))}
       </div>
     );
 
-    const LogsFeed = () => {
-      const logs = useQuery("logs:list") || [];
-      return (
-        <div className="column">
-          <h2>Logs Recentes</h2>
-          {logs.slice(0,10).map(log => (
-            <div key={log._id}>{new Date(log.timestamp).toLocaleString()}: {log.message} ({log.level})</div>
-          ))}
-        </div>
-      );
-    };
+    const LogsFeed = ({ logs }) => (
+      <div className="column">
+        <h2>Logs Recentes ({logs.length})</h2>
+        {logs.map(log => (
+          <div key={log.id}>
+            {new Date(log.timestamp).toLocaleString()}: {log.message} ({log.level})
+          </div>
+        ))}
+      </div>
+    );
 
     ReactDOM.render(<App />, document.getElementById("root"));
   </script>
